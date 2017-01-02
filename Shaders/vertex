@@ -1,0 +1,29 @@
+#version 450
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 2) in vec3 face_normal;
+layout(location = 3) in vec2 texture_coord;
+
+uniform mat4 Projection;
+uniform mat4 Modelview;
+uniform mat4 Inverse_Modelview;
+uniform vec3 eye_pos;
+uniform vec3 light_pos;
+
+flat out vec4 eye_pos_v;
+flat out vec4 light_pos_v;
+
+out vec4 position_v;
+out vec4 normal_v;
+out vec2 texture_coord_v;
+
+void main() {
+	light_pos_v = Modelview * vec4(light_pos, 1.0);
+	eye_pos_v = Modelview * vec4(eye_pos, 1.0);
+	
+	position_v = Modelview * vec4(position, 1.0);
+	normal_v = transpose(Inverse_Modelview) * vec4(normal, 0.0);
+	texture_coord_v = texture_coord;
+	
+	gl_Position = Projection * position_v;
+}

@@ -1,0 +1,31 @@
+#version 450
+layout(binding = 0) uniform sampler2D texture;
+
+flat in vec4 eye_pos_v;
+flat in vec4 light_pos_v;
+
+in vec4 position_v;
+in vec4 normal_v;
+in vec2 texture_coord_v;
+
+uniform vec4 ambient;
+uniform vec4 diffuse;
+uniform vec4 specular;
+uniform float shininess;
+uniform int use_texture;
+
+out vec4 outColor;
+
+void main() {
+	vec3 normal = normalize(normal_v.xyz);
+	vec3 light = normalize(light_pos_v.xyz/light_pos_v.w - position_v.xyz/position_v.w);
+	vec3 eye = normalize(eye_pos_v.xyz/eye_pos_v.w - position_v.xyz/position_v.w);
+	vec3 reflect_light = -reflect(light, normal);
+	
+	outColor = ambient;
+	if(dot(normal, light)>0)
+		outColor += dot(normal, light) * ((use_texture==1)? texture2D(texture, texture_coord_v): diffuse);
+		//outColor += texture2D(texture, texture_coord_v) * dot(normal, light);
+	if(dot(eye, reflect_light)>0)
+		outColor += specular * pow(dot(eye, reflect_light), shininess);
+}
