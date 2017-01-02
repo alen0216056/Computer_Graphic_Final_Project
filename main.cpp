@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h> /* offsetof */
+#include <math.h>
 #include "../GL/glew.h"
 #include "../GL/glut.h""
 #include "../shader_lib/shader.h"
@@ -32,7 +33,12 @@ struct my_vertex
 };
 
 int mouse_pos[2];
+int time = 0;
+float wavelength = 0.1;
+float amplitude = 0.1;
+int frequency = 1;
 double center[3] = { 0.0, 0.0, 0.0 };
+float center_normal[3] = { 0.0, 0.0, 0.0 };
 my_vertex* vertices;
 GLuint vertex_shader, fragment_shader, program, vbo_name;
 ///////////////////////////////////////////
@@ -131,39 +137,35 @@ void display(void)
 				0.0, 1.0, 0.0);
 
 	//	Write your code here
-	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_TEXTURE_2D);
 	
 	GLfloat projection_matrix[16];
 	glGetFloatv(GL_PROJECTION_MATRIX, projection_matrix);
-	GLint projection_location = glGetUniformLocation(program, "Projection");
-
 	GLfloat modelview_matrix[16];
 	glGetFloatv(GL_MODELVIEW_MATRIX, modelview_matrix);
-	GLint modelview_location = glGetUniformLocation(program, "Modelview");
-	
 	GLfloat inverse_modelview_matrix[16];
 	gluInvertMatrix(modelview_matrix, inverse_modelview_matrix);
-	GLint inverse_modelview_location = glGetUniformLocation(program, "Inverse_Modelview");
-
-	GLint eye_pos_location = glGetUniformLocation(program, "eye_pos");
-	GLint light_pos_location = glGetUniformLocation(program, "light_pos");
 
 	GLint texture_location = glGetUniformLocation(program, "texture");
-	
 	GLint ambient_location = glGetUniformLocation(program, "ambient");
 	GLint diffuse_location = glGetUniformLocation(program, "diffuse");
 	GLint specular_location = glGetUniformLocation(program, "specular");
 	GLint shininess_location = glGetUniformLocation(program, "shininess");
 	GLint use_texture_location = glGetUniformLocation(program, "use_texture");
 	glUseProgram(program);
-		glUniformMatrix4fv(projection_location, 1, GL_FALSE, projection_matrix);
-		glUniformMatrix4fv(modelview_location, 1, GL_FALSE, modelview_matrix);
-		glUniformMatrix4fv(inverse_modelview_location, 1, GL_FALSE, inverse_modelview_matrix);
-		glUniform3f(eye_pos_location, eye_pos[0], eye_pos[1], 3.0);
-		glUniform3fv(light_pos_location, 1, light_pos);
-		
+		glUniformMatrix4fv(glGetUniformLocation(program, "Projection"), 1, GL_FALSE, projection_matrix);
+		glUniformMatrix4fv(glGetUniformLocation(program, "Modelview"), 1, GL_FALSE, modelview_matrix);
+		glUniformMatrix4fv(glGetUniformLocation(program, "Inverse_Modelview"), 1, GL_FALSE, inverse_modelview_matrix);
+		glUniform3f(glGetUniformLocation(program, "eye_pos"), eye_pos[0], eye_pos[1], 3.0);
+		glUniform3fv(glGetUniformLocation(program, "light_pos"), 1, light_pos);
+		glUniform1i(glGetUniformLocation(program, "time"), time);
+		glUniform1f(glGetUniformLocation(program, "wavelength"), wavelength);
+		glUniform1f(glGetUniformLocation(program, "amplitude"), amplitude);
+		glUniform1i(glGetUniformLocation(program, " frequency"), frequency);
+		glUniform3f(glGetUniformLocation(program, "center"), float(center[0]), float(center[1]), float(center[2]));
+		glUniform3fv(glGetUniformLocation(program, "center_normal"), 1, center_normal);
+
 		int triangle_num = 0;
 		for (GLMgroup* group = model->groups; group; group = group->next)
 		{
@@ -193,8 +195,9 @@ void display(void)
 	glColor3f(1, 1, 1);
 	glPointSize(10);
 	glBegin(GL_POINTS);
-		glVertex3dv(center);
+	glVertex3dv(center);
 	glEnd();
+	time = (time + 1) % 100 + 1;
 
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
@@ -251,10 +254,26 @@ void mouse(int button, int state, int x, int y)
 		GLint viewport[4];
 		glGetIntegerv(GL_VIEWPORT, viewport);
 		GLfloat z;
+		y = viewport[3] - y - 1;
 		glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
 		printf("x: %d y: %d z: %f\n", x, y, z);
 		gluUnProject(x, y, z, modelview, projection, viewport, &center[0], &center[1], &center[2]);
 		printf("%lf %lf %lf\n", center[0], center[1], center[2]);
+
+		double distance, min_distance = 0xffffffff;
+		for (int i = 0; i < model->numvertices; i++)
+		{
+			distance = pow((model->vertices[i * 3] - center[0]) * (model->vertices[i * 3] - center[0])
+				+ (model->vertices[i * 3 + 1] - center[1]) * (model->vertices[i * 3 + 1] - center[1])
+				+ (model->vertices[i * 3 + 2] - center[2]) * (model->vertices[i * 3 + 2] - center[2]), 0.5);
+			if (distance < min_distance)
+			{
+				for (int j = 0; j < 3; j++)
+					center_normal[j] = model->normals[i * 3 + j];
+				min_distance = distance;
+			}
+		}
+		printf("center normal:%f %f %f\n", center_normal[0], center_normal[1], center_normal[2]);
 	}
 }
 

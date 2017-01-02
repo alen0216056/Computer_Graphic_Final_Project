@@ -10,6 +10,14 @@ uniform mat4 Inverse_Modelview;
 uniform vec3 eye_pos;
 uniform vec3 light_pos;
 
+uniform int time;
+uniform float wavelength;
+uniform float amplitude;
+uniform int frequency;
+
+uniform vec3 center;
+uniform vec3 center_normal;
+
 flat out vec4 eye_pos_v;
 flat out vec4 light_pos_v;
 
@@ -17,12 +25,38 @@ out vec4 position_v;
 out vec4 normal_v;
 out vec2 texture_coord_v;
 
+float wave(vec3 pos)
+{
+	vec3 distance_vector = pos - center;
+	float distance = length(distance_vector);
+	if(distance<0.5)
+	{
+		return amplitude * sin(distance/(wavelength*frequency) + time); 
+	}
+	return 0.0;
+}
+
+
 void main() {
 	light_pos_v = Modelview * vec4(light_pos, 1.0);
 	eye_pos_v = Modelview * vec4(eye_pos, 1.0);
 	
 	position_v = Modelview * vec4(position, 1.0);
-	normal_v = transpose(Inverse_Modelview) * vec4(normal, 0.0);
+
+	float dot_result = dot(normal, center_normal);
+	float distance = length(center-position);
+	if(dot_result>0 && distance<=0.3)
+	{
+		//float theta = asin( dot_result/(length(normal)*length(center_normal)) );	//theda is radian
+		//float new_theta = theta + distance;
+		vec3 new_normal = (1+5*distance/time) * (normal - center_normal) + center_normal; 
+		normal_v = transpose(Inverse_Modelview) * vec4(new_normal, 0.0);
+	}
+	else
+	{
+		normal_v = transpose(Inverse_Modelview) * vec4(normal, 0.0);
+	}
+	
 	texture_coord_v = texture_coord;
 	
 	gl_Position = Projection * position_v;
