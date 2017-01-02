@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
 
 void init(void) {
 	//Initialize model
+	//model = glmReadOBJ("Model/Apple.obj");
 	model = glmReadOBJ("Model/HumanHeart2/Heart.obj");
 	glmUnitize(model);
 	glmFacetNormals(model);
