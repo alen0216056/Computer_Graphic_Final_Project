@@ -21,10 +21,12 @@ public:
 
 	const int get_center_number();
 	const int set_center_number(const int n);
-	const double* get_center_position(const int index);
-	const double* set_center_position(const int index, const double value[]);
-	const double get_radius(const int index);
-	const double set_radius(const int index, double value);
+	const float* get_center_position(const int index);
+	const float* set_center_position(const int index, const double value[]);
+	const float* set_center_position(const int index, const float value[]);
+	const float get_radius(const int index);
+	const float set_radius(const int index, const double pos[]);
+	const float set_radius(const int index, float value);
 	const float* get_center_normal(const int index);
 	const float* set_center_normal(const int index, const float value[]);
 	const string model_name(const string str = "");
@@ -32,8 +34,8 @@ public:
 	const string fragment_shader_name(const string str = "");
 private:
 	int center_num;
-	double center_pos[10][3];
-	double radius[10];
+	float center_pos[10][3];
+	float radius[10];
 	float center_normal[10][3];
 	string model;
 	string vertex_shader;

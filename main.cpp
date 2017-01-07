@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h> /* offsetof */
+#include <string>
 #include <math.h>
 #include <time.h>
 #include "../GL/glew.h"
@@ -22,7 +23,7 @@ void idle(void);
 bool gluInvertMatrix(const float m[16], float invOut[16]);
 void sleepcp(int milliseconds);
 
-//////////global variables///////////////
+/*global variables*/
 struct my_vertex
 {
 	float position[3];
@@ -34,17 +35,18 @@ struct my_vertex
 GLMmodel *model;
 GLfloat light_pos[] = { 10.0, 10.0, 0.0 };
 float eye_pos[] = { 0.0, 0.0, 3.0 };
-int timer = 0;
+bool timer_mode = true;
+int timer = 0, center_index = 0;
 parameter* parameter_ptr;
 my_vertex* vertices;
 GLuint vertex_shader, fragment_shader, program, vbo_name;
-///////////////////////////////////////////
+
 int main(int argc, char *argv[])
 {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutCreateWindow("Final Project");
-	glutReshapeWindow(512, 512);
+	glutReshapeWindow(800, 800);
 
 	glewInit();
 
@@ -157,8 +159,16 @@ void display(void)
 		glUniform3f(glGetUniformLocation(program, "eye_pos"), eye_pos[0], eye_pos[1], 3.0);
 		glUniform3fv(glGetUniformLocation(program, "light_pos"), 1, light_pos);
 		glUniform1i(glGetUniformLocation(program, "timer"), timer);
-		glUniform3f(glGetUniformLocation(program, "center"), float(parameter_ptr->get_center_position(0)[0]), float(parameter_ptr->get_center_position(0)[1]), float(parameter_ptr->get_center_position(0)[2]));
-		glUniform3fv(glGetUniformLocation(program, "center_normal"), 1, parameter_ptr->get_center_normal(0));
+		glUniform1i(glGetUniformLocation(program, "center_num"), parameter_ptr->get_center_number()); 
+		for (int i = 0; i < 10; i++)
+		{
+			string str = "center[" + to_string(i) + "]";
+			glUniform3fv(glGetUniformLocation(program, str.c_str()), 1, parameter_ptr->get_center_position(i));
+			str = "center_normal[" + to_string(i) + "]";
+			glUniform3fv(glGetUniformLocation(program, str.c_str()), 1, parameter_ptr->get_center_normal(i));
+			str = "radius[" + to_string(i) + "]";
+			glUniform1f(glGetUniformLocation(program, str.c_str()), parameter_ptr->get_radius(i));
+		}
 		
 		int triangle_num = 0;
 		for (GLMgroup* group = model->groups; group; group = group->next)
@@ -189,10 +199,22 @@ void display(void)
 	glColor3f(1, 1, 1);
 	glPointSize(10);
 	glBegin(GL_POINTS);
-	glVertex3dv(parameter_ptr->get_center_position(0));
+		for(int i=0; i<parameter_ptr->get_center_number(); i++)
+			glVertex3fv(parameter_ptr->get_center_position(i));
 	glEnd();
-		
-	timer = (timer + 1) % 100;
+	
+	if (timer_mode)
+	{
+		timer++;
+		if (timer == 100)
+			timer_mode = false;
+	}
+	else
+	{
+		timer--;
+		if (timer == 0)
+			timer_mode = true;
+	}
 	
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
@@ -207,71 +229,102 @@ void reshape(int width, int height)
 }
 
 void keyboard(unsigned char key, int x, int y) {
-	switch (key) {
-	case 27:
-	{	//ESC
+	switch (key) 
+	{
+	case 27://ESC
 		exit(0);
 		break;
-	}
 	case 'd':
-	{
 		eye_pos[0] += 0.1;
 		break;
-	}
 	case 'a':
-	{
 		eye_pos[0] -= 0.1;
 		break;
-	}
 	case 'w':
-	{
 		eye_pos[1] += 0.1;
 		break;
-	}
 	case 's':
-	{
 		eye_pos[1]-= 0.1;
 		break;
-	}
 	default:
-	{
+		if ('0' <= key && key <= '9')
+		{
+			if (key - '0' < parameter_ptr->get_center_number())
+			{
+				center_index = key - '0';
+				printf("center index %d\n", center_index);
+			}
+		}
 		break;
-	}
 	}
 }
 
 void mouse(int button, int state, int x, int y)
 {
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	switch (button)
 	{
-		GLdouble modelview[16];
-		glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
-		GLdouble projection[16];
-		glGetDoublev(GL_PROJECTION_MATRIX, projection);
-		GLint viewport[4];
-		glGetIntegerv(GL_VIEWPORT, viewport);
-		GLfloat z;
-		y = viewport[3] - y - 1;
-		glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
-		printf("x: %d y: %d z: %f\n", x, y, z);
-		double center[3];
-		gluUnProject(x, y, z, modelview, projection, viewport, &center[0], &center[1], &center[2]);
-		parameter_ptr->set_center_position(0, center);
-		printf("%lf %lf %lf\n", parameter_ptr->get_center_position(0)[0], parameter_ptr->get_center_position(0)[1], parameter_ptr->get_center_position(0)[2]);
-
-		double distance, min_distance = 0xffffffff;
-		for (int i = 0; i < model->numvertices; i++)
+	case GLUT_LEFT_BUTTON:
+		if (state == GLUT_DOWN)
 		{
-			distance = pow((model->vertices[i * 3] - center[0]) * (model->vertices[i * 3] - center[0])
-				+ (model->vertices[i * 3 + 1] - center[1]) * (model->vertices[i * 3 + 1] - center[1])
-				+ (model->vertices[i * 3 + 2] - center[2]) * (model->vertices[i * 3 + 2] - center[2]), 0.5);
-			if (distance < min_distance)
+			GLdouble modelview[16];
+			glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
+			GLdouble projection[16];
+			glGetDoublev(GL_PROJECTION_MATRIX, projection);
+			GLint viewport[4];
+			glGetIntegerv(GL_VIEWPORT, viewport);
+			GLfloat z;
+			y = viewport[3] - y - 1;
+			glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
+			//printf("x: %d y: %d z: %f\n", x, y, z);
+			double center[3];
+			gluUnProject(x, y, z, modelview, projection, viewport, &center[0], &center[1], &center[2]);
+			parameter_ptr->set_center_position(center_index, center);
+			//printf("%lf %lf %lf\n", parameter_ptr->get_center_position(0)[0], parameter_ptr->get_center_position(0)[1], parameter_ptr->get_center_position(0)[2]);
+
+			double distance, min_distance = 0xffffffff;
+			for (int i = 0; i < model->numvertices; i++)
 			{
-				parameter_ptr->set_center_normal(0, &model->normals[i * 3]);
-				min_distance = distance;
+				distance = pow((model->vertices[i * 3] - center[0]) * (model->vertices[i * 3] - center[0])
+					+ (model->vertices[i * 3 + 1] - center[1]) * (model->vertices[i * 3 + 1] - center[1])
+					+ (model->vertices[i * 3 + 2] - center[2]) * (model->vertices[i * 3 + 2] - center[2]), 0.5);
+				if (distance < min_distance)
+				{
+					parameter_ptr->set_center_normal(center_index, &model->normals[i * 3]);
+					min_distance = distance;
+				}
 			}
+			parameter_ptr->set_radius(center_index, 0.0f);
+			printf("center normal:%f %f %f\n", parameter_ptr->get_center_normal(center_index)[0], parameter_ptr->get_center_normal(center_index)[1], parameter_ptr->get_center_normal(center_index)[2]);
 		}
-		printf("center normal:%f %f %f\n", parameter_ptr->get_center_normal(0)[0], parameter_ptr->get_center_normal(0)[1], parameter_ptr->get_center_normal(0)[2]);
+		break;
+	case GLUT_RIGHT_BUTTON:
+		if (state == GLUT_DOWN)
+		{
+			GLdouble modelview[16];
+			glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
+			GLdouble projection[16];
+			glGetDoublev(GL_PROJECTION_MATRIX, projection);
+			GLint viewport[4];
+			glGetIntegerv(GL_VIEWPORT, viewport);
+			GLfloat z;
+			y = viewport[3] - y - 1;
+			glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
+			//printf("x: %d y: %d z: %f\n", x, y, z);
+			double center[3];
+			gluUnProject(x, y, z, modelview, projection, viewport, &center[0], &center[1], &center[2]);
+			parameter_ptr->set_radius(center_index, center);
+			printf("radius %f\n", parameter_ptr->get_radius(center_index));
+		}
+		break;
+	case GLUT_MIDDLE_BUTTON:
+		if (state == GLUT_DOWN)
+		{
+
+		}
+		break;
+	default:
+
+		break;
 	}
 }
 

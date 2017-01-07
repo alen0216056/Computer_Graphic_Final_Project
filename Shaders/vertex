@@ -10,9 +10,10 @@ uniform mat4 Inverse_Modelview;
 uniform vec3 eye_pos;
 uniform vec3 light_pos;
 
-uniform int timer;
-uniform vec3 center;
-uniform vec3 center_normal;
+uniform int timer, center_num;
+uniform vec3 center[10];
+uniform vec3 center_normal[10];
+uniform float radius[10];
 
 flat out vec4 eye_pos_v;
 flat out vec4 light_pos_v;
@@ -23,24 +24,21 @@ out vec2 texture_coord_v;
 void main() {
 	light_pos_v = Modelview * vec4(light_pos, 1.0);
 	eye_pos_v = Modelview * vec4(eye_pos, 1.0);
-	
 	position_v = Modelview * vec4(position, 1.0);
-
-	float dot_result = dot(normal, center_normal);
-	float distance = length(center-position);
-	if(dot_result>0 && distance<=0.4)
-	{
-		//float theta = asin( dot_result/(length(normal)*length(center_normal)) );	//theda is radian
-		//float new_theta = theta + distance;
-		vec3 new_normal = (1+5*distance/timer) * (normal - center_normal) + center_normal; 
-		normal_v = transpose(Inverse_Modelview) * vec4(new_normal, 0.0);
-	}
-	else
-	{
-		normal_v = transpose(Inverse_Modelview) * vec4(normal, 0.0);
-	}
-	
 	texture_coord_v = texture_coord;
-	
+
+	vec3 new_normal = vec3(0.0, 0.0, 0.0);
+	float dot_result, distance;
+	for(int i; i<center_num; i++)
+	{
+		dot_result = dot(center_normal[i], normal);
+		distance = length(center[i]-position);
+		if( dot_result>0 && distance<=radius[i] )
+		{
+			new_normal += (5*distance/timer) * (normal - center_normal[i]);
+		}
+	}
+	new_normal += normal;
+	normal_v = transpose(Inverse_Modelview) * vec4(new_normal, 0.0);
 	gl_Position = Projection * position_v;
 }
