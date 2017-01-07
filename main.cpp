@@ -2,10 +2,12 @@
 #include <stdlib.h>
 #include <stddef.h> /* offsetof */
 #include <math.h>
+#include <time.h>
 #include "../GL/glew.h"
 #include "../GL/glut.h""
 #include "../shader_lib/shader.h"
 #include "glm/glm.h"
+#include "parameter.h"
 extern "C"
 {
 	#include "glm_helper.h"
@@ -18,12 +20,9 @@ void keyboard(unsigned char key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void idle(void);
 bool gluInvertMatrix(const float m[16], float invOut[16]);
+void sleepcp(int milliseconds);
 
-GLMmodel *model;
-GLfloat light_pos[] = { 10.0, 10.0, 0.0 };
-float eye_pos[] = { 0.0, 0.0, 3.0 };
-
-//////////my global variables///////////////
+//////////global variables///////////////
 struct my_vertex
 {
 	float position[3];
@@ -32,17 +31,14 @@ struct my_vertex
 	float texture[2];
 };
 
-int mouse_pos[2];
-int time = 0;
-float wavelength = 0.1;
-float amplitude = 0.1;
-int frequency = 1;
-double center[3] = { 0.0, 0.0, 0.0 };
-float center_normal[3] = { 0.0, 0.0, 0.0 };
+GLMmodel *model;
+GLfloat light_pos[] = { 10.0, 10.0, 0.0 };
+float eye_pos[] = { 0.0, 0.0, 3.0 };
+int timer = 0;
+parameter* parameter_ptr;
 my_vertex* vertices;
 GLuint vertex_shader, fragment_shader, program, vbo_name;
 ///////////////////////////////////////////
-
 int main(int argc, char *argv[])
 {
 	glutInit(&argc, argv);
@@ -52,6 +48,7 @@ int main(int argc, char *argv[])
 
 	glewInit();
 
+	parameter_ptr = new parameter(argc, argv);
 	init();
 
 	glutReshapeFunc(reshape);
@@ -69,8 +66,8 @@ int main(int argc, char *argv[])
 
 void init(void) {
 	//Initialize model
-	//model = glmReadOBJ("Model/Apple.obj");
-	model = glmReadOBJ("Model/HumanHeart2/Heart.obj");
+	//model = glmReadOBJ("Model/HumanHeart2/Heart.obj");
+	model = glmReadOBJ(parameter_ptr->model_name().c_str());
 	glmUnitize(model);
 	glmFacetNormals(model);
 	glmVertexNormals(model, 90.0, GL_FALSE);
@@ -118,8 +115,8 @@ void init(void) {
 	glEnableVertexAttribArray(3);
 	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(my_vertex), (void*)(offsetof(my_vertex, texture)));
 	//compile vertex shader, fragment shader, and create program
-	vertex_shader = createShader("Shaders/vertex", "vertex");
-	fragment_shader = createShader("Shaders/fragment", "fragment");
+	vertex_shader = createShader(parameter_ptr->vertex_shader_name().c_str(), "vertex");
+	fragment_shader = createShader(parameter_ptr->fragment_shader_name().c_str(), "fragment");
 	program = createProgram(vertex_shader, fragment_shader);
 }
 
@@ -159,13 +156,10 @@ void display(void)
 		glUniformMatrix4fv(glGetUniformLocation(program, "Inverse_Modelview"), 1, GL_FALSE, inverse_modelview_matrix);
 		glUniform3f(glGetUniformLocation(program, "eye_pos"), eye_pos[0], eye_pos[1], 3.0);
 		glUniform3fv(glGetUniformLocation(program, "light_pos"), 1, light_pos);
-		glUniform1i(glGetUniformLocation(program, "time"), time);
-		glUniform1f(glGetUniformLocation(program, "wavelength"), wavelength);
-		glUniform1f(glGetUniformLocation(program, "amplitude"), amplitude);
-		glUniform1i(glGetUniformLocation(program, " frequency"), frequency);
-		glUniform3f(glGetUniformLocation(program, "center"), float(center[0]), float(center[1]), float(center[2]));
-		glUniform3fv(glGetUniformLocation(program, "center_normal"), 1, center_normal);
-
+		glUniform1i(glGetUniformLocation(program, "timer"), timer);
+		glUniform3f(glGetUniformLocation(program, "center"), float(parameter_ptr->get_center_position(0)[0]), float(parameter_ptr->get_center_position(0)[1]), float(parameter_ptr->get_center_position(0)[2]));
+		glUniform3fv(glGetUniformLocation(program, "center_normal"), 1, parameter_ptr->get_center_normal(0));
+		
 		int triangle_num = 0;
 		for (GLMgroup* group = model->groups; group; group = group->next)
 		{
@@ -195,13 +189,16 @@ void display(void)
 	glColor3f(1, 1, 1);
 	glPointSize(10);
 	glBegin(GL_POINTS);
-	glVertex3dv(center);
+	glVertex3dv(parameter_ptr->get_center_position(0));
 	glEnd();
-	time = (time + 1) % 100 + 1;
-
+		
+	timer = (timer + 1) % 100;
+	
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
 	glutSwapBuffers();
+
+	sleepcp(30);
 }
 
 void reshape(int width, int height)
@@ -257,8 +254,10 @@ void mouse(int button, int state, int x, int y)
 		y = viewport[3] - y - 1;
 		glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
 		printf("x: %d y: %d z: %f\n", x, y, z);
+		double center[3];
 		gluUnProject(x, y, z, modelview, projection, viewport, &center[0], &center[1], &center[2]);
-		printf("%lf %lf %lf\n", center[0], center[1], center[2]);
+		parameter_ptr->set_center_position(0, center);
+		printf("%lf %lf %lf\n", parameter_ptr->get_center_position(0)[0], parameter_ptr->get_center_position(0)[1], parameter_ptr->get_center_position(0)[2]);
 
 		double distance, min_distance = 0xffffffff;
 		for (int i = 0; i < model->numvertices; i++)
@@ -268,12 +267,11 @@ void mouse(int button, int state, int x, int y)
 				+ (model->vertices[i * 3 + 2] - center[2]) * (model->vertices[i * 3 + 2] - center[2]), 0.5);
 			if (distance < min_distance)
 			{
-				for (int j = 0; j < 3; j++)
-					center_normal[j] = model->normals[i * 3 + j];
+				parameter_ptr->set_center_normal(0, &model->normals[i * 3]);
 				min_distance = distance;
 			}
 		}
-		printf("center normal:%f %f %f\n", center_normal[0], center_normal[1], center_normal[2]);
+		printf("center normal:%f %f %f\n", parameter_ptr->get_center_normal(0)[0], parameter_ptr->get_center_normal(0)[1], parameter_ptr->get_center_normal(0)[2]);
 	}
 }
 
@@ -410,4 +408,13 @@ bool gluInvertMatrix(const float m[16], float invOut[16])
 		invOut[i] = inv[i] * det;
 
 	return true;
+}
+
+void sleepcp(int milliseconds)	//sleep 10^-3 second
+{
+	clock_t time_end;
+	time_end = clock() + milliseconds * CLOCKS_PER_SEC / 1000;
+	while (clock() < time_end)
+	{
+	}
 }
