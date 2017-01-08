@@ -1,5 +1,5 @@
 #version 450
-//expansion with linear rate
+//depression with nonlinear rate
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec3 face_normal;
@@ -37,7 +37,7 @@ void main() {
 		if( dot_result>0 && distance<=radius[i] )
 		{
 			vec3 diff = vec3(position - center[i]);
-			new_normal += 3 * diff * timer[i]/120;
+			new_normal -= 3 * diff / timer[i];
 		}
 	}
 	new_normal = normalize(normal + new_normal);

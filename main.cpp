@@ -35,8 +35,8 @@ struct my_vertex
 GLMmodel *model;
 GLfloat light_pos[] = { 10.0, 10.0, 0.0 };
 float eye_pos[] = { 0.0, 0.0, 3.0 };
-bool timer_mode = true;
-int timer = 0, center_index = 0;
+bool timer_mode[10], show_center = true;
+int timer[10], center_index = 0;
 parameter* parameter_ptr;
 my_vertex* vertices;
 GLuint vertex_shader, fragment_shader, program, vbo_name;
@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
 
 void init(void) {
 	//Initialize model
-	//model = glmReadOBJ("Model/HumanHeart2/Heart.obj");
 	model = glmReadOBJ(parameter_ptr->model_name().c_str());
 	glmUnitize(model);
 	glmFacetNormals(model);
@@ -120,6 +119,13 @@ void init(void) {
 	vertex_shader = createShader(parameter_ptr->vertex_shader_name().c_str(), "vertex");
 	fragment_shader = createShader(parameter_ptr->fragment_shader_name().c_str(), "fragment");
 	program = createProgram(vertex_shader, fragment_shader);
+	//initial timer
+	for (int i = 0; i < 10; i++)
+	{
+		timer[i] = 1;
+		timer_mode[i] = true;
+	}
+		
 }
 
 void display(void)
@@ -158,7 +164,7 @@ void display(void)
 		glUniformMatrix4fv(glGetUniformLocation(program, "Inverse_Modelview"), 1, GL_FALSE, inverse_modelview_matrix);
 		glUniform3f(glGetUniformLocation(program, "eye_pos"), eye_pos[0], eye_pos[1], 3.0);
 		glUniform3fv(glGetUniformLocation(program, "light_pos"), 1, light_pos);
-		glUniform1i(glGetUniformLocation(program, "timer"), timer);
+		glUniform1iv(glGetUniformLocation(program, "timer"), 10, timer);
 		glUniform1i(glGetUniformLocation(program, "center_num"), parameter_ptr->get_center_number()); 
 		for (int i = 0; i < 10; i++)
 		{
@@ -196,31 +202,37 @@ void display(void)
 		}
 	glUseProgram(0);
 	
-	glColor3f(1, 1, 1);
-	glPointSize(10);
-	glBegin(GL_POINTS);
-		for(int i=0; i<parameter_ptr->get_center_number(); i++)
+	if (show_center)
+	{
+		glColor3f(1, 1, 1);
+		glPointSize(10);
+		glBegin(GL_POINTS);
+		for (int i = 0; i<parameter_ptr->get_center_number(); i++)
 			glVertex3fv(parameter_ptr->get_center_position(i));
-	glEnd();
-	
-	if (timer_mode)
-	{
-		timer++;
-		if (timer == 100)
-			timer_mode = false;
+		glEnd();
 	}
-	else
+	
+	for (int i = 0; i < 10; i++)
 	{
-		timer--;
-		if (timer == 0)
-			timer_mode = true;
+		if (timer_mode[i])
+		{
+			timer[i]++;
+			if (timer[i] == 120)
+				timer_mode[i] = false;
+		}
+		else
+		{
+			timer[i]--;
+			if (timer[i] == 1)
+				timer_mode[i] = true;
+		}
 	}
 	
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_DEPTH_TEST);
 	glutSwapBuffers();
 
-	sleepcp(30);
+	sleepcp(10);
 }
 
 void reshape(int width, int height)
@@ -245,6 +257,9 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 	case 's':
 		eye_pos[1]-= 0.1;
+		break;
+	case 9:	//tab
+		show_center = !show_center;
 		break;
 	default:
 		if ('0' <= key && key <= '9')
@@ -293,6 +308,8 @@ void mouse(int button, int state, int x, int y)
 					min_distance = distance;
 				}
 			}
+			timer[center_index] = 1;
+			timer_mode[center_index] = true;
 			parameter_ptr->set_radius(center_index, 0.0f);
 			printf("center normal:%f %f %f\n", parameter_ptr->get_center_normal(center_index)[0], parameter_ptr->get_center_normal(center_index)[1], parameter_ptr->get_center_normal(center_index)[2]);
 		}
