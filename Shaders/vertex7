@@ -34,13 +34,11 @@ void main() {
 	{
 		dot_result = dot(center_normal[i], normal);
 		distance = length(center[i]-position);
-		if( dot_result>0 && distance<=radius[i] )
+		if( dot_result>0 )
 		{
 			vec3 diff = vec3(position - center[i]);
-			if( distance<=radius[i]/2 )
-				new_normal += 3 * 2 * distance * normalize(diff) * timer[i]/120;
-			else
-				new_normal += 3 * 2 * (radius[i] - distance) * normalize(diff) * timer[i]/120;
+			//mu = 0, sigma^2 = 1
+			new_normal += 3 * exp(-pow(2.4*distance/radius[i], 2)/2)/sqrt(2*3.14159) * normalize(diff) * timer[i]/120;
 		}
 	}
 	new_normal = normalize(normal + new_normal);
