@@ -1,0 +1,47 @@
+#version 450
+//normal distribution expansion with linear rate
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 2) in vec3 face_normal;
+layout(location = 3) in vec2 texture_coord;
+
+uniform mat4 Projection;
+uniform mat4 Modelview;
+uniform mat4 Inverse_Modelview;
+uniform vec3 eye_pos;
+uniform vec3 light_pos;
+
+uniform int timer[10], center_num;
+uniform vec3 center[10];
+uniform vec3 center_normal[10];
+uniform float radius[10];
+
+flat out vec4 eye_pos_v;
+flat out vec4 light_pos_v;
+out vec4 position_v;
+out vec4 normal_v;
+out vec2 texture_coord_v;
+
+void main() {
+	light_pos_v = Modelview * vec4(light_pos, 1.0);
+	eye_pos_v = Modelview * vec4(eye_pos, 1.0);
+	position_v = Modelview * vec4(position, 1.0);
+	texture_coord_v = texture_coord;
+
+	vec3 new_normal = vec3(0.0, 0.0, 0.0);
+	float dot_result, distance;
+	for(int i; i<center_num; i++)
+	{
+		dot_result = dot(center_normal[i], normal);
+		distance = length(center[i]-position);
+		if( dot_result>0 )
+		{
+			vec3 diff = vec3(position - center[i]);
+			//mu = 0, sigma^2 = 1
+			new_normal += 3 * exp(-pow(2.4*distance/radius[i], 2)/2)/sqrt(2*3.14159) * normalize(diff) * timer[i]/120;
+		}
+	}
+	new_normal = normalize(normal + new_normal);
+	normal_v = transpose(Inverse_Modelview) * vec4(new_normal, 0.0);
+	gl_Position = Projection * position_v;
+}
